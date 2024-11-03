@@ -1,5 +1,6 @@
 
 const http = require('http');
+const steamLocation = require("../helpers/steamLocation");
 
 //Récupère les détails d'un utilisateur Steam
 function getFriendDetails(friendSteamid) {
@@ -7,17 +8,16 @@ function getFriendDetails(friendSteamid) {
   return new Promise ((resolve) => {
 
     //TODO : Récupérer par paquets de 100 amis
-    const getPlayerSummaries = {
+    const url = {
       hostname : "api.steampowered.com",
       path : "/ISteamUser/GetPlayerSummaries/v0002/?key="+process.env.STEAM_API+"&steamids="+friendSteamid,
       method : "GET"
     }
 
-    http.get(getPlayerSummaries, res => {
+    http.get(url, res => {
       let data = [];
       const headerDate = res.headers && res.headers.date ? res.headers.date : 'no response date';
-      console.log('Status Code:', res.statusCode);
-      console.log('Date in Response header:', headerDate);
+      console.log('Status Code for GET /GetPlayerSummaries :', res.statusCode);
 
       res.on('data', chunk => {
         data.push(chunk);
@@ -26,15 +26,15 @@ function getFriendDetails(friendSteamid) {
       res.on('end', () => {
         const friend = JSON.parse(Buffer.concat(data).toString()).response.players[0];
         
-        //TODO: Mapper les valeurs steam.
+        const location = steamLocation.find(friend.loccountrycode, friend.locstatecode, friend.loccityid);
 
         let friendDetails = { 
           name : friend.personaname,
-          country : friend.loccountrycode ?? '',
-          region : friend.locstatecode ?? '',
-          city : friend.loccityid ?? ''
+          country : location.loccountry ?? '',
+          region : location.locstate ?? '',
+          city : location.loccity ?? ''
         }
-        console.log(JSON.stringify(friendDetails));
+        
         resolve(friendDetails);
       });
     });
@@ -47,35 +47,32 @@ function getFriendsList(steamId) {
   return new Promise((resolve) => {
     let friendsList = [];
 
-    const getFriendList = {
+    const url = {
       hostname : "api.steampowered.com",
       path : "/ISteamUser/GetFriendList/v0001/?key="+process.env.STEAM_API+"&steamid="+steamId+"&relationship=friend",
       method : "GET"
     }
   
-    http.get(getFriendList, res => {
+    http.get(url, res => {
 
       let data = [];
     
       const headerDate = res.headers && res.headers.date ? res.headers.date : 'no response date';
-      console.log('Status Code:', res.statusCode);
-      console.log('Date in Response header:', headerDate);
+      console.log('Status Code for GET /GetFriendList:', res.statusCode);
 
       res.on('data', chunk => {
         data.push(chunk);
       });
     
       res.on('end', async () => {
-        console.log('Response ended: ');
-        const friends = JSON.parse(Buffer.concat(data).toString());
-        for(friend of friends.friendslist.friends) {
-          console.log(`Got friend with id: ${friend.steamid}`);
+        const friendsJson = JSON.parse(Buffer.concat(data).toString());
+        for(friend of friendsJson.friendslist.friends) {
           friendsList.push(await getFriendDetails(friend.steamid));
-          
         }
 
+        console.log("friendList: ");
         for(f of friendsList) {
-          console.log("f:" + JSON.stringify(f));        
+          console.log(JSON.stringify(f));        
         }
 
         //resolve(res.send(friendsList));
@@ -86,6 +83,6 @@ function getFriendsList(steamId) {
 
 }
 
-exports.friendsList = async function(req, res, next) {
+exports.friends = async function(req, res, next) {
   res.send(await getFriendsList(req.query.steamid));
 }
