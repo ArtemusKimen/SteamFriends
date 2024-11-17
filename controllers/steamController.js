@@ -1,6 +1,7 @@
 
 const http = require('http');
 const steamLocation = require("../helpers/steamLocation");
+const gMaps = require("../helpers/gMaps");
 
 //Récupère les détails d'un utilisateur Steam
 function getFriendDetails(friendSteamid) {
@@ -84,5 +85,18 @@ function getFriendsList(steamId) {
 }
 
 exports.friends = async function(req, res, next) {
-  res.send(await getFriendsList(req.query.steamid));
+
+  var friendsList = await getFriendsList(req.query.steamid);
+  var markers = "";
+
+  //format friends as gmaps' marker parameter
+  for(friend of friendsList){
+    markers += gMaps.getMarker(friend);
+  }
+
+  res.render('friends', {
+    'friends' : JSON.stringify(friendsList),
+    'markers' : markers,
+    'apikey' : process.env.GOOGLE_API
+  });
 }
